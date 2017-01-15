@@ -6,5 +6,5 @@ func DeepCopy(dst, src *ArtificialFish) {
 	copy(dst.Object, src.Object)
 	dst.FoodConsistence = src.FoodConsistence
 	dst.NeighborNum = src.NeighborNum
-//	dst.Visual = src.Visual
+	dst.Visual = src.Visual
 }

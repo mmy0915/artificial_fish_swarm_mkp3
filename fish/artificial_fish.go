@@ -44,11 +44,11 @@ func NewArtificialFish() *ArtificialFish {
 		if BagTag == UNSELECTED {
 			af.Object[i] = UNSELECTED //背包的第flag项赋成未选择
 		} else {
-			if Weight[i] > af.Capacity[BagTag] { //重量超过，不放入
+			if AllGoods[i].Weight > af.Capacity[BagTag] { //重量超过，不放入
 				af.Object[i] = UNSELECTED
 			} else {
 				af.Object[i] = BagTag                     //放入
-				af.Capacity[BagTag] -= Weight[i] //背包容量减去放入物品重量
+				af.Capacity[BagTag] -= AllGoods[i].Weight //背包容量减去放入物品重量
 			}
 		}
 	}
@@ -70,20 +70,20 @@ func (af *ArtificialFish) PutInto(bag int, objectID int) {
 	if af.Object[objectID] == bag {
 		return
 	}
-	if Weight[objectID] < Capacity_Limit[bag] {
+	if AllGoods[objectID].Weight < Capacity_Limit[bag] {
 
 		if af.Object[objectID] != UNSELECTED {
 			af.TakeOut(objectID) //物品objectID从包中取出
 		}
 
 		//包剩余容量充足的情况
-		if af.Capacity[bag] >= Weight[objectID] {
+		if af.Capacity[bag] >= AllGoods[objectID].Weight {
 			af.Object[objectID] = bag                     //放入背包
-			af.Capacity[bag] -= Weight[objectID] //背包剩余容量减去物品重量
+			af.Capacity[bag] -= AllGoods[objectID].Weight //背包剩余容量减去物品重量
 		} else { //包容量不足的情况
 			//可能取出的物品的位置编号
 			endFlag := OBJECT_NUM - 1
-			for af.Capacity[bag] < Weight[objectID] { //取出部分物品补充容量
+			for af.Capacity[bag] < AllGoods[objectID].Weight { //取出部分物品补充容量
 				//l.Lock()
 				//j := r.Intn(endFlag) //随机产生j为取出的物品号
 				//l.Unlock()
@@ -95,9 +95,9 @@ func (af *ArtificialFish) PutInto(bag int, objectID int) {
 				endFlag--
 			}
 
-			if af.Capacity[bag] >= Weight[objectID] {
+			if af.Capacity[bag] > AllGoods[objectID].Weight {
 				af.Object[objectID] = bag
-				af.Capacity[bag] -= Weight[objectID] //把物品ObjectFlag放入bag里
+				af.Capacity[bag] -= AllGoods[objectID].Weight //把物品ObjectFlag放入bag里
 			}
 		}
 	}
@@ -107,10 +107,10 @@ func (af *ArtificialFish) PutInto(bag int, objectID int) {
 
 func (af *ArtificialFish) Adjust(bag int, objectID int) {
 	for i := objectID; i < OBJECT_NUM; i++ {
-		if af.Object[i] == UNSELECTED && af.Capacity[bag] >= Weight[objectID] {
+		if af.Object[i] == UNSELECTED && af.Capacity[bag] >= AllGoods[i].Weight {
 			//fmt.Printf("puting object %d to bag %d\n", objectID, bag)
 			af.Object[i] = bag
-			af.Capacity[bag] -= Weight[objectID]  //把物品ObjectFlag放入bag里
+			af.Capacity[bag] -= AllGoods[i].Weight //把物品ObjectFlag放入bag里
 		}
 	}
 }
@@ -123,7 +123,7 @@ func (af *ArtificialFish) RandomlyMove() {
 	//fmt.Printf("limit is %f\n", limit)
 	//随机步长
 	l.Lock()
-	step := r.Intn(int(math.Abs(limit)) + 1) + 1
+	step := r.Intn(int(math.Abs(limit))+1) + 1
 	l.Unlock()
 
 	//当前人工鱼的副本，用来计算移动的距离
@@ -172,10 +172,48 @@ func (af *ArtificialFish) Prey() {
 	af.RandomlyMove()
 }
 
-func (af *ArtificialFish) Follow(allFish []*ArtificialFish, selfID int) {
+func (af *ArtificialFish) FollowBestNeighborList(allFish []*ArtificialFish, selfID int) {
+	maxFitness := allFish[0].FoodConsistence
+	maxID := 0
+	for i := 0; i < POPSIZE; i++ {
+		//是邻居且排除自己
+		if af.Distance(allFish[i]) < af.Visual && i != selfID {
+			//最后记录最大的邻居和邻居的序号
+			if allFish[i].FoodConsistence > maxFitness {
+				maxFitness = allFish[i].FoodConsistence
+				maxID = i
+			}
+		}
+	}
+
+	//2. 统计最优鱼的邻居个数
+	allFish[maxID].UpdateNeighborList(allFish, maxID)
 
 	//随机步长
-	step := OBJECT_NUM / 6
+	l.Lock()
+	step := r.Intn(OBJECT_NUM/BAG_NUM) + 1
+	l.Unlock()
+
+	cur := 0
+
+	for i := 0; i < OBJECT_NUM; i++ {
+		if af.Object[i] != allFish[maxID].Object[i] && allFish[maxID].Object[i] != UNSELECTED {
+			cur++
+			af.PutInto(allFish[maxID].Object[i], i)
+		}
+		if cur == step {
+			break
+		}
+	}
+
+	af.EstimateFoodConsistence()
+}
+
+func (af *ArtificialFish) FollowBulletin(allFish []*ArtificialFish, selfID int) {
+	//随机步长
+	l.Lock()
+	step := r.Intn(OBJECT_NUM/BAG_NUM) + 1
+	l.Unlock()
 
 	cur := 0
 
@@ -235,7 +273,7 @@ func (af *ArtificialFish) EstimateFoodConsistence() float64 {
 	af.FoodConsistence = 0.0
 	for i := 0; i < OBJECT_NUM; i++ {
 		if af.Object[i] != UNSELECTED {
-			af.FoodConsistence += float64(Dim[af.Object[i]][i])
+			af.FoodConsistence += float64(AllGoods[i].Value)
 		}
 	}
 
@@ -302,16 +340,16 @@ func (af *ArtificialFish) BehaviorSelection(allFish []*ArtificialFish, selfID in
 
 	//更新邻居信息
 	af.UpdateNeighborList(allFish, selfID)
-/*
-	if float64(af.NeighborNum) <= LINE_Neighbor*float64(POPSIZE) {
-		af.Follow(allFish, selfID)
-	} else { //邻居多
-		fmt.Println("fish is preying. NeighborNum is too big")
-		af.Prey()
-	}*/
+	/*
+		if float64(af.NeighborNum) <= LINE_Neighbor*float64(POPSIZE) {
+			af.Follow(allFish, selfID)
+		} else { //邻居多
+			fmt.Println("fish is preying. NeighborNum is too big")
+			af.Prey()
+		}*/
 
 	if af.NeighborNum != 0 {
-		af.Follow(allFish, selfID)
+		af.FollowBulletin(allFish, selfID)
 	}
 
 	af.Prey()
@@ -327,5 +365,5 @@ func (af *ArtificialFish) TakeOut(objectID int) {
 	af.Object[objectID] = UNSELECTED
 
 	//increase bag's capacity
-	af.Capacity[bagTag] += Weight[objectID]
+	af.Capacity[bagTag] += AllGoods[objectID].Weight
 }

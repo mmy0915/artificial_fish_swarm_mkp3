@@ -1,7 +1,7 @@
 package main
 
 import (
-	. "artificial_fish_swarm_mkp4/fish"
+	. "artificial_fish_swarm_mkp3/fish"
 	"fmt"
 	"os"
 	"sync"
@@ -11,7 +11,7 @@ import (
 var l sync.Mutex
 
 const RUN_TIMES = 1
-const MAX_GENERATION = 10000000 //最大进化代数
+const MAX_GENERATION = 1000000000 //最大进化代数
 
 const SHOW = true
 
@@ -22,17 +22,39 @@ var Individual = make([]*ArtificialFish, POPSIZE)
 
 var startTime time.Time
 
+var finish bool
+
 func main() {
 
-	startTime = time.Now()
+	files, _ := WalkDir("D:/work/source/gopath/src/artificial_fish_swarm_mkp/generated_MKP_instances", "txt")
 
-	err := InitGoods("G:/source/git/artificial_fish_swarm_mkp/generated_MKP_instances/online/test.txt")
+	fmt.Printf("%v\n", files)
+
+	for i := 0; i < len(files); i++ {
+
+		finish = false
+
+		time.AfterFunc(time.Second, func() {
+			fmt.Printf("time out*****************************************************************************************")
+			finish = true
+		})
+
+		processFile(files[i])
+
+	}
+
+}
+
+func processFile(file string) {
+	fmt.Println("processing file " + file)
+	err := InitGoods(file)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
 	for i := 0; i < RUN_TIMES; i++ {
+		startTime = time.Now()
 
 		fmt.Printf("runtimes = %d\n", i)
 
@@ -73,21 +95,21 @@ func main() {
 
 func worker(runTime int) {
 	for g := 0; g < MAX_GENERATION; g++ {
+		//Fish's Choice
+		if finish {
+			break
+		}
 		for pop := 0; pop < POPSIZE; pop++ {
-			//Fish's Choice
 			Individual[pop].BehaviorSelection(Individual, pop)
 			if Individual[pop].FoodConsistence > Bulletin.FoodConsistence {
-				distance := Individual[pop].Distance(&Bulletin)
-				fmt.Printf("\n第 %d 条鱼 的 %d 代 和公告板的距离：%d\n", pop, g, distance)
 				Bulletin = *Individual[pop]
 				end := time.Now()
 				RunTime[runTime] = end.Sub(startTime).Seconds()
 				FirstTimes[runTime] = g
 				if SHOW {
 					//Display information
-					fmt.Printf("第 %d 条鱼 的 %d 代最优解: %f, 耗时%f\n", pop, g, Bulletin.FoodConsistence, RunTime[runTime])
+					fmt.Printf("\n第 %d 条鱼 的 %d 代最优解: %f, 耗时%f\n", pop, g, Bulletin.FoodConsistence, RunTime[runTime])
 				}
-
 				checkResult()
 			}
 		}
@@ -102,8 +124,8 @@ func checkResult() {
 
 	for i := 0; i < OBJECT_NUM; i++ {
 		if Bulletin.Object[i] != UNSELECTED {
-			capacities[Bulletin.Object[i]] += Weight[i]
-			value += float64(Dim[Bulletin.Object[i]][i])
+			capacities[Bulletin.Object[i]] += AllGoods[i].Weight
+			value += float64(AllGoods[i].Value)
 		}
 	}
 

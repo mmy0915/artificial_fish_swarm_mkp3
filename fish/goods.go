@@ -3,9 +3,10 @@ package fish
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
-        "strconv"
-        "strings"
+	"strconv"
+	"strings"
 )
 
 type Goods struct {
@@ -15,19 +16,18 @@ type Goods struct {
 }
 
 func NewGoods(weight, value int) *Goods {
-	unitValue := float64(value)
-	if weight != 0 {
-		unitValue = float64(value) / float64(weight)
-	}
 	goods := &Goods{
 		Weight:    weight,
 		Value:     value,
-		UnitValue: unitValue,
+		UnitValue: float64(value) / float64(weight),
 	}
 	return goods
 }
 
 func InitGoods(path string) error {
+
+	OBJECT_NUM = 0
+	BAG_NUM = 0
 
 	file, err := os.Open(path)
 	if err != nil {
@@ -36,67 +36,36 @@ func InitGoods(path string) error {
 	}
 	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
-	scanner.Split(bufio.ScanWords)
-	scanner.Scan()
-	fmt.Printf("processing file %s\n", scanner.Text())
+	bfRd := bufio.NewReader(file)
+	for {
+		line, err := bfRd.ReadString('\n')
 
-	scanner.Scan()
-	BAG_NUM, _ = strconv.Atoi(strings.TrimSpace(scanner.Text()))
-	scanner.Scan()
-	OBJECT_NUM, _ = strconv.Atoi(strings.TrimSpace(scanner.Text()))
+		if err != nil { //遇到任何错误立即返回，并忽略 EOF 错误信息
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+		items := strings.Split(line, ",")
 
-	fmt.Printf("there are %d bags, %d objects\n", BAG_NUM, OBJECT_NUM)
-
-	Weight = make([]int, OBJECT_NUM)
-
-	for i := 0; i < OBJECT_NUM; i++ {
-		scanner.Scan()
-		Weight[i], _ = strconv.Atoi(scanner.Text())
-	}
-
-	fmt.Printf("objects Weight is %v\n", Weight)
-
-	Capacity_Limit = make([]int, BAG_NUM)
-	for i := 0; i < BAG_NUM; i++ {
-		scanner.Scan()
-		Capacity_Limit[i], _ = strconv.Atoi(scanner.Text())
-	}
-
-	fmt.Printf("bag capacity is %v\n", Capacity_Limit)
-
-	Dim = make([][]int, BAG_NUM)
-	for i := 0; i < BAG_NUM; i++ {
-		Dim[i] = make([]int, OBJECT_NUM)
-	}
-	for i := 0; i < BAG_NUM; i++ {
-		for j := 0; j < OBJECT_NUM; j++ {
-			scanner.Scan()
-			Dim[i][j], _ = strconv.Atoi(scanner.Text())
+		if len(items) == 2 {
+			weight, _ := strconv.Atoi(strings.TrimSpace(items[0]))
+			value, _ := strconv.Atoi(strings.TrimSpace(items[1]))
+			AllGoods = append(AllGoods, NewGoods(weight, value))
+			OBJECT_NUM++
+		} else if len(items) == 1 && strings.TrimSpace(items[0]) != "" {
+			cap, _ := strconv.Atoi(strings.TrimSpace(items[0]))
+			Capacity_Limit = append(Capacity_Limit, cap)
+			BAG_NUM++
 		}
 	}
 
-/*	for i := 0; i < OBJECT_NUM; i++ {
-		scanner.Scan()
-		Value[i], _ = strconv.Atoi(scanner.Text())
-		for j := 0; j < BAG_NUM; j++ {
-			scanner.Scan()
-			Dim[j][i], _ = strconv.Atoi(scanner.Text())
-		}
-	}
-
-	Capacity_Limit = make([]int, BAG_NUM)
-	for i := 0; i < BAG_NUM; i++ {
-		scanner.Scan()
-		Capacity_Limit[i], _ = strconv.Atoi(scanner.Text())
-	}*/
-
-	//sortGoods()
+	sortGoods()
 
 	return nil
 }
 
-/*func sortGoods() {
+func sortGoods() {
 	for i := 0; i < OBJECT_NUM; i++ {
 		for j := 0; j < OBJECT_NUM-i-1; j++ {
 			if AllGoods[j].UnitValue < AllGoods[j+1].UnitValue {
@@ -104,4 +73,4 @@ func InitGoods(path string) error {
 			}
 		}
 	}
-}*/
+}
